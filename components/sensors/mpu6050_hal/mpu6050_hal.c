@@ -1,8 +1,9 @@
 /* components/sensors/mpu6050_hal/mpu6050_hal.c */
 
-/* TODO: Test this */
+/* TODO: The values retrieved from this sensor seems a bit sus, needs to be configurea a bit better */
 
 #include "mpu6050_hal.h"
+#include "file_write_manager.h"
 #include "webserver_tasks.h"
 #include "cJSON.h"
 #include "common/i2c.h"
@@ -17,7 +18,7 @@ const char      *mpu6050_tag                = "MPU6050";
 const uint8_t    mpu6050_scl_io             = GPIO_NUM_22;
 const uint8_t    mpu6050_sda_io             = GPIO_NUM_21;
 const uint32_t   mpu6050_i2c_freq_hz        = 100000;
-const uint32_t   mpu6050_polling_rate_ticks = pdMS_TO_TICKS(0.5 * 1000);
+const uint32_t   mpu6050_polling_rate_ticks = pdMS_TO_TICKS(5 * 1000);
 const uint8_t    mpu6050_sample_rate_div    = 9;
 const uint8_t    mpu6050_config_dlpf        = k_mpu6050_config_dlpf_44hz;
 const uint8_t    mpu6050_int_io             = GPIO_NUM_26;
@@ -403,10 +404,12 @@ void mpu6050_tasks(void *sensor_data)
       if (mpu6050_read(mpu6050_data) == ESP_OK) {
         char *json = mpu6050_data_to_json(mpu6050_data);
         send_sensor_data_to_webserver(json);
+        file_write_enqueue("mpu6050.txt", json);
         free(json);
       } else {
         mpu6050_reset_on_error(mpu6050_data);
       }
+      vTaskDelay(mpu6050_polling_rate_ticks);
     }
   }
 }

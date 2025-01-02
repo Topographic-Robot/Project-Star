@@ -1,11 +1,12 @@
 /* components/sensors/gy_neo6mv2_hal/gy_neo6mv2_hal.c */
 
-/* TODO: Test this */
+/* TODO: UBLOCK's app works, but this doesn't :( sorrow */
 
 #include "gy_neo6mv2_hal.h"
 #include <string.h>
 #include <stdlib.h>
 #include "esp_err.h"
+#include "file_write_manager.h"
 #include "webserver_tasks.h"
 #include "cJSON.h"
 #include "common/uart.h"
@@ -459,6 +460,7 @@ void gy_neo6mv2_tasks(void *sensor_data)
     if (gy_neo6mv2_read(gy_neo6mv2_data) == ESP_OK) {
       char *json = gy_neo6mv2_data_to_json(gy_neo6mv2_data);
       send_sensor_data_to_webserver(json);
+      file_write_enqueue("gy_neo6mv2.txt", json);
       free(json);
     } else {
       ESP_LOGW(gy_neo6mv2_tag, "Error reading GPS data, resetting...");

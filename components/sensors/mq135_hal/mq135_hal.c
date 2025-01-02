@@ -1,10 +1,8 @@
 /* components/sensors/mq135_hal/mq135_hal.c */
 
-/* TODO: Test this */
-/* TODO: Move adc init to common/adc.h if needed */
-
 #include "mq135_hal.h"
 #include <math.h>
+#include "file_write_manager.h"
 #include "webserver_tasks.h"
 #include "cJSON.h"
 #include "esp_log.h"
@@ -174,6 +172,7 @@ void mq135_tasks(void *sensor_data)
     if (mq135_read(mq135_data) == ESP_OK) {
       char *json = mq135_data_to_json(mq135_data);
       send_sensor_data_to_webserver(json);
+      file_write_enqueue("mq135.txt", json);
       free(json);
     } else {
       mq135_reset_on_error(mq135_data);

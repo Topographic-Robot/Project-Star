@@ -1,5 +1,7 @@
 /* components/storage/sd_card_hal/sd_card_hal.c */
 
+/* TODO: CD & SDIO */
+
 #include "sd_card_hal.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -7,11 +9,8 @@
 #include "esp_err.h"
 #include "driver/spi_common.h"
 #include "driver/sdspi_host.h"
-#include "driver/spi_master.h"
 #include "esp_vfs_fat.h"
 #include "sdmmc_cmd.h"
-
-#include <inttypes.h>
 
 /* Constants ******************************************************************/
 
@@ -19,7 +18,7 @@ const char             *sd_card_tag                  = "SD_CARD";
 const char             *sd_card_mount_path           = "/sdcard";
 const uint8_t           sd_card_cs                   = GPIO_NUM_5;
 const uint8_t           sd_card_data_to_card         = GPIO_NUM_23;
-const uint8_t           sd_card_clk                  = GPIO_NUM_18;
+const uint8_t           sd_card_clk                  = GPIO_NUM_14;
 const uint8_t           sd_card_data_from_card       = GPIO_NUM_19;
 const uint32_t          sd_card_spi_freq_hz          = 1000000;     /* 1 MHz SPI frequency */
 const spi_host_device_t sd_card_spi_host             = SPI2_HOST;
@@ -90,7 +89,7 @@ esp_err_t sd_card_init(void)
     esp_vfs_fat_mount_config_t mount_config = {
       .format_if_mount_failed = false,
       .max_files              = sd_card_max_files,
-      .allocation_unit_size   = sd_card_allocation_unit_size
+      .allocation_unit_size   = sd_card_allocation_unit_size,
     };
 
     /* Mount the filesystem */

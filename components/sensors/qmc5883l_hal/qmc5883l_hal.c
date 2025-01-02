@@ -1,7 +1,10 @@
 /* components/sensors/qmc5883l_hal/qmc5883l_hal.c */
 
+/* TODO: DRDY */
+
 #include "qmc5883l_hal.h"
 #include <math.h>
+#include "file_write_manager.h"
 #include "webserver_tasks.h"
 #include "cJSON.h"
 #include "common/i2c.h"
@@ -196,6 +199,7 @@ void qmc5883l_tasks(void *sensor_data)
     if (qmc5883l_read(qmc5883l_data) == ESP_OK) {
       char *json = qmc5883l_data_to_json(qmc5883l_data);
       send_sensor_data_to_webserver(json);
+      file_write_enqueue("qmc5883l.txt", json);
       free(json);
     } else {
       qmc5883l_reset_on_error(qmc5883l_data);
