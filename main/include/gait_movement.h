@@ -10,9 +10,13 @@ extern "C" {
 #include "esp_err.h"
 #include "pca9685_hal.h"
 
+/* Macros *********************************************************************/
+
+#define num_legs (6) /**< The number of legs the robot has (6) */
+
 /* Constants ******************************************************************/
 
-extern const char *gait_tag; /**< Tag for logs */
+extern const char   *gait_tag;            /**< Tag for logs */
 
 /* Public Functions ***********************************************************/
 
