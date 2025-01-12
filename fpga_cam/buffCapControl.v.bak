@@ -1,0 +1,26 @@
+// Module Name: data
+// Description: module for handling databus
+// Author: Jeremie Hews
+// Date: 12/27
+module  dataRegistering(
+    // Port Declarations
+	input 		          		CamPCLK,
+	input 		          		CamVSYNC,
+	input 		          		HREF,
+	input 		     [7:0]     PixData,
+
+	output reg [15:0] pixOutput,
+//	output reg dataValid,
+	output reg buffClear1,
+	output reg buffClear2,
+	output reg writeBuff1,
+	output reg writeBuff2,
+	output reg buffSelect
+
+	);
+
+
+
+
+
+endmodule

@@ -1,0 +1,28 @@
+// Module Name: data
+// Description: module for handling databus
+// Author: Jeremie Hews
+// Date: 12/27
+module  (
+    // Port Declarations
+	input 		          		CamPCLK,
+	input 		          		CamVSYNC,
+	input 		          		HREF,
+	input 		     [7:0]     PixData,
+
+	output [15:0] PixOutput
+	
+	);
+	
+	
+	//_i means it is stored in a register, the non _i is just an input value and is not stored aka pipe stage
+	reg [7:0] PixData_i;
+	reg CamVSYNC_i;
+	reg  HREF_i;
+
+	
+	
+
+
+
+
+endmodule

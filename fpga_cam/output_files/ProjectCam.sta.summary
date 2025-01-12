@@ -1,0 +1,113 @@
+------------------------------------------------------------
+Timing Analyzer Summary
+------------------------------------------------------------
+
+Type  : Slow 1200mV 85C Model Setup 'CamXCLK_i'
+Slack : -2.294
+TNS   : -46.338
+
+Type  : Slow 1200mV 85C Model Setup 'CamPCLK'
+Slack : -0.578
+TNS   : -8.319
+
+Type  : Slow 1200mV 85C Model Setup 'MAX10_CLK1_50'
+Slack : -0.548
+TNS   : -0.548
+
+Type  : Slow 1200mV 85C Model Hold 'CamXCLK_i'
+Slack : 0.309
+TNS   : 0.000
+
+Type  : Slow 1200mV 85C Model Hold 'CamPCLK'
+Slack : 0.371
+TNS   : 0.000
+
+Type  : Slow 1200mV 85C Model Hold 'MAX10_CLK1_50'
+Slack : 0.550
+TNS   : 0.000
+
+Type  : Slow 1200mV 85C Model Minimum Pulse Width 'CamPCLK'
+Slack : -3.000
+TNS   : -33.550
+
+Type  : Slow 1200mV 85C Model Minimum Pulse Width 'MAX10_CLK1_50'
+Slack : -3.000
+TNS   : -4.222
+
+Type  : Slow 1200mV 85C Model Minimum Pulse Width 'CamXCLK_i'
+Slack : -1.222
+TNS   : -35.438
+
+Type  : Slow 1200mV 0C Model Setup 'CamXCLK_i'
+Slack : -2.015
+TNS   : -39.862
+
+Type  : Slow 1200mV 0C Model Setup 'CamPCLK'
+Slack : -0.445
+TNS   : -6.202
+
+Type  : Slow 1200mV 0C Model Setup 'MAX10_CLK1_50'
+Slack : -0.354
+TNS   : -0.354
+
+Type  : Slow 1200mV 0C Model Hold 'CamXCLK_i'
+Slack : 0.279
+TNS   : 0.000
+
+Type  : Slow 1200mV 0C Model Hold 'CamPCLK'
+Slack : 0.343
+TNS   : 0.000
+
+Type  : Slow 1200mV 0C Model Hold 'MAX10_CLK1_50'
+Slack : 0.398
+TNS   : 0.000
+
+Type  : Slow 1200mV 0C Model Minimum Pulse Width 'CamPCLK'
+Slack : -3.000
+TNS   : -33.550
+
+Type  : Slow 1200mV 0C Model Minimum Pulse Width 'MAX10_CLK1_50'
+Slack : -3.000
+TNS   : -4.222
+
+Type  : Slow 1200mV 0C Model Minimum Pulse Width 'CamXCLK_i'
+Slack : -1.222
+TNS   : -35.438
+
+Type  : Fast 1200mV 0C Model Setup 'CamXCLK_i'
+Slack : -0.607
+TNS   : -9.148
+
+Type  : Fast 1200mV 0C Model Setup 'MAX10_CLK1_50'
+Slack : -0.148
+TNS   : -0.148
+
+Type  : Fast 1200mV 0C Model Setup 'CamPCLK'
+Slack : 0.259
+TNS   : 0.000
+
+Type  : Fast 1200mV 0C Model Hold 'CamXCLK_i'
+Slack : 0.141
+TNS   : 0.000
+
+Type  : Fast 1200mV 0C Model Hold 'CamPCLK'
+Slack : 0.166
+TNS   : 0.000
+
+Type  : Fast 1200mV 0C Model Hold 'MAX10_CLK1_50'
+Slack : 0.385
+TNS   : 0.000
+
+Type  : Fast 1200mV 0C Model Minimum Pulse Width 'CamPCLK'
+Slack : -3.000
+TNS   : -35.559
+
+Type  : Fast 1200mV 0C Model Minimum Pulse Width 'MAX10_CLK1_50'
+Slack : -3.000
+TNS   : -4.227
+
+Type  : Fast 1200mV 0C Model Minimum Pulse Width 'CamXCLK_i'
+Slack : -1.000
+TNS   : -29.000
+
+------------------------------------------------------------

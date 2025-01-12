@@ -1,0 +1,189 @@
+{
+	"partitions" : [
+		{
+			"name" : "Top",
+			"pins" : [
+				{
+					"name" : "VGA_B[0]",
+					"strict" : false
+				},
+				{
+					"name" : "VGA_B[1]",
+					"strict" : false
+				},
+				{
+					"name" : "VGA_B[2]",
+					"strict" : false
+				},
+				{
+					"name" : "VGA_B[3]",
+					"strict" : false
+				},
+				{
+					"name" : "VGA_G[0]",
+					"strict" : false
+				},
+				{
+					"name" : "VGA_G[1]",
+					"strict" : false
+				},
+				{
+					"name" : "VGA_G[2]",
+					"strict" : false
+				},
+				{
+					"name" : "VGA_G[3]",
+					"strict" : false
+				},
+				{
+					"name" : "VGA_HS",
+					"strict" : false
+				},
+				{
+					"name" : "VGA_R[0]",
+					"strict" : false
+				},
+				{
+					"name" : "VGA_R[1]",
+					"strict" : false
+				},
+				{
+					"name" : "VGA_R[2]",
+					"strict" : false
+				},
+				{
+					"name" : "VGA_R[3]",
+					"strict" : false
+				},
+				{
+					"name" : "VGA_VS",
+					"strict" : false
+				},
+				{
+					"name" : "CamXCLK",
+					"strict" : false
+				},
+				{
+					"name" : "pixOutput[0]",
+					"strict" : false
+				},
+				{
+					"name" : "pixOutput[1]",
+					"strict" : false
+				},
+				{
+					"name" : "pixOutput[2]",
+					"strict" : false
+				},
+				{
+					"name" : "pixOutput[3]",
+					"strict" : false
+				},
+				{
+					"name" : "pixOutput[4]",
+					"strict" : false
+				},
+				{
+					"name" : "pixOutput[5]",
+					"strict" : false
+				},
+				{
+					"name" : "pixOutput[6]",
+					"strict" : false
+				},
+				{
+					"name" : "pixOutput[7]",
+					"strict" : false
+				},
+				{
+					"name" : "pixOutput[8]",
+					"strict" : false
+				},
+				{
+					"name" : "pixOutput[9]",
+					"strict" : false
+				},
+				{
+					"name" : "pixOutput[10]",
+					"strict" : false
+				},
+				{
+					"name" : "pixOutput[11]",
+					"strict" : false
+				},
+				{
+					"name" : "pixOutput[12]",
+					"strict" : false
+				},
+				{
+					"name" : "pixOutput[13]",
+					"strict" : false
+				},
+				{
+					"name" : "pixOutput[14]",
+					"strict" : false
+				},
+				{
+					"name" : "pixOutput[15]",
+					"strict" : false
+				},
+				{
+					"name" : "dataValid",
+					"strict" : false
+				},
+				{
+					"name" : "KEY[1]",
+					"strict" : false
+				},
+				{
+					"name" : "MAX10_CLK1_50",
+					"strict" : false
+				},
+				{
+					"name" : "KEY[0]",
+					"strict" : false
+				},
+				{
+					"name" : "CamPCLK",
+					"strict" : false
+				},
+				{
+					"name" : "HREF",
+					"strict" : false
+				},
+				{
+					"name" : "PixData[0]",
+					"strict" : false
+				},
+				{
+					"name" : "PixData[1]",
+					"strict" : false
+				},
+				{
+					"name" : "PixData[2]",
+					"strict" : false
+				},
+				{
+					"name" : "PixData[3]",
+					"strict" : false
+				},
+				{
+					"name" : "PixData[4]",
+					"strict" : false
+				},
+				{
+					"name" : "PixData[5]",
+					"strict" : false
+				},
+				{
+					"name" : "PixData[6]",
+					"strict" : false
+				},
+				{
+					"name" : "PixData[7]",
+					"strict" : false
+				}
+			]
+		}
+	]
+}
