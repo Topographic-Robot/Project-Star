@@ -1,9 +1,0 @@
-[submodule "Schematic"]
-	path = Schematic
-	url = https://github.com/Topographic-Robot/Schematic
-[submodule "Documentation"]
-	path = Documentation
-	url = https://github.com/Topographic-Robot/Documentation
-[submodule "CAD_Files"]
-	path = CAD_Files
-	url = https://github.com/Topographic-Robot/CAD_Files
