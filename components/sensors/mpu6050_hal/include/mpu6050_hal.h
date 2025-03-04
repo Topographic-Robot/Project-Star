@@ -19,11 +19,22 @@ extern const i2c_port_t mpu6050_i2c_bus;            /**< I2C bus number used by 
 extern const char      *mpu6050_tag;                /**< Tag for log_handler messages related to the MPU6050 sensor. */
 extern const uint8_t    mpu6050_scl_io;             /**< GPIO pin for I2C Serial Clock Line (SCL) for MPU6050. */
 extern const uint8_t    mpu6050_sda_io;             /**< GPIO pin for I2C Serial Data Line (SDA) for MPU6050. */
-extern const uint32_t   mpu6050_i2c_freq_hz;        /**< I2C bus frequency for MPU6050 communication (default 100 kHz). */
+extern const uint32_t   mpu6050_i2c_freq_hz;        /**< I2C bus frequency for MPU6050 communication (default 400 kHz). */
 extern const uint32_t   mpu6050_polling_rate_ticks; /**< Polling interval for MPU6050 sensor reads in system ticks. */
 extern const uint8_t    mpu6050_sample_rate_div;    /**< Sample rate divider for MPU6050 (default divides gyro rate). */
 extern const uint8_t    mpu6050_config_dlpf;        /**< Digital Low Pass Filter (DLPF) setting for noise reduction. */
 extern const uint8_t    mpu6050_int_io;             /**< GPIO pin for MPU6050 interrupt signal (INT pin). */
+
+/* Calibration offsets */
+extern const float      mpu6050_accel_offset_x;     /**< Calibration offset for X-axis acceleration. */
+extern const float      mpu6050_accel_offset_y;     /**< Calibration offset for Y-axis acceleration. */
+extern const float      mpu6050_accel_offset_z;     /**< Calibration offset for Z-axis acceleration. */
+extern const float      mpu6050_gyro_offset_x;      /**< Calibration offset for X-axis gyroscope. */
+extern const float      mpu6050_gyro_offset_y;      /**< Calibration offset for Y-axis gyroscope. */
+extern const float      mpu6050_gyro_offset_z;      /**< Calibration offset for Z-axis gyroscope. */
+
+/* Moving average filter parameters */
+#define MPU6050_FILTER_SAMPLES 5  /**< Number of samples to average for the moving average filter. */
 
 /* Enums **********************************************************************/
 
@@ -81,6 +92,38 @@ typedef enum : uint8_t {
 } mpu6050_event_bits_t;
 
 /**
+ * @brief Enumeration of interrupt pin active levels for the MPU6050 sensor.
+ */
+typedef enum : uint8_t {
+  k_mpu6050_int_active_high = 0, /**< Interrupt pin is active high (default). */
+  k_mpu6050_int_active_low  = 1, /**< Interrupt pin is active low. */
+} mpu6050_int_active_level_t;
+
+/**
+ * @brief Enumeration of interrupt pin modes for the MPU6050 sensor.
+ */
+typedef enum : uint8_t {
+  k_mpu6050_int_push_pull  = 0, /**< Interrupt pin is configured as push-pull (default). */
+  k_mpu6050_int_open_drain = 1, /**< Interrupt pin is configured as open-drain. */
+} mpu6050_int_pin_mode_t;
+
+/**
+ * @brief Enumeration of interrupt latch modes for the MPU6050 sensor.
+ */
+typedef enum : uint8_t {
+  k_mpu6050_int_latch_50us           = 0, /**< Interrupt pin pulses for 50μs. */
+  k_mpu6050_int_latch_until_cleared  = 1, /**< Interrupt pin remains active until cleared. */
+} mpu6050_int_latch_mode_t;
+
+/**
+ * @brief Enumeration of interrupt clear behaviors for the MPU6050 sensor.
+ */
+typedef enum : uint8_t {
+  k_mpu6050_int_clear_any_read      = 0, /**< Interrupt status is cleared on any register read. */
+  k_mpu6050_int_clear_status_read   = 1, /**< Interrupt status is cleared only by reading INT_STATUS. */
+} mpu6050_int_clear_mode_t;
+
+/**
  * @brief Enumeration of MPU6050 sensor states.
  *
  * Defines the possible states of the MPU6050 sensor for tracking its operational
@@ -90,6 +133,7 @@ typedef enum : uint8_t {
   k_mpu6050_ready            = 0x00, /**< Sensor is initialized and ready to read data. */
   k_mpu6050_data_updated     = 0x01, /**< New sensor data has been updated. */
   k_mpu6050_uninitialized    = 0x10, /**< Sensor is not initialized. */
+  k_mpu6050_sleep_mode       = 0x20, /**< Sensor is in sleep mode to save power. */
   k_mpu6050_error            = 0xF0, /**< General error state. */
   k_mpu6050_power_on_error   = 0xA1, /**< Error occurred during power-on initialization. */
   k_mpu6050_reset_error      = 0xA3, /**< Error occurred while resetting the sensor. */
@@ -106,6 +150,7 @@ typedef enum : uint8_t {
 typedef enum : uint8_t {
   /* Power Management Commands */
   k_mpu6050_power_down_cmd      = 0x40, /**< Command to power down the sensor (enter sleep mode). */
+  k_mpu6050_sleep_cmd           = 0x40, /**< Command to put the sensor into sleep mode (same as power_down). */
   k_mpu6050_power_on_cmd        = 0x00, /**< Command to power on the sensor (wake up from sleep). */
   k_mpu6050_reset_cmd           = 0x80, /**< Command to reset the sensor. */
   k_mpu6050_pwr_mgmt_1_cmd      = 0x6B, /**< Power Management 1 register. */
@@ -120,6 +165,7 @@ typedef enum : uint8_t {
   /* Interrupt Configuration Commands */
   k_mpu6050_int_enable_cmd      = 0x38, /**< Interrupt Enable register. */
   k_mpu6050_int_status_cmd      = 0x3A, /**< Interrupt Status register. */
+  k_mpu6050_int_pin_cfg_cmd     = 0x37, /**< INT Pin Configuration register. */
 
   /* Configuration Values */
   k_mpu6050_who_am_i_response   = 0x68, /**< Expected response from the WHO_AM_I register. */
@@ -202,23 +248,82 @@ typedef struct {
 } mpu6050_gyro_config_t;
 
 /**
- * @brief Structure to store MPU6050 sensor data and state.
- *
- * Contains accelerometer and gyroscope readings, temperature, operational state,
- * and semaphore for signaling data readiness. Also holds I2C communication details.
+ * @brief Structure to configure the interrupt pin behavior for the MPU6050.
  */
 typedef struct {
-  uint8_t           i2c_address;    /**< I2C address used for communication with the sensor. */
-  uint8_t           i2c_bus;        /**< I2C bus number used for communication. */
-  float             accel_x;        /**< Measured X-axis acceleration in g. */
-  float             accel_y;        /**< Measured Y-axis acceleration in g. */
-  float             accel_z;        /**< Measured Z-axis acceleration in g. */
-  float             gyro_x;         /**< Measured X-axis angular velocity in °/s. */
-  float             gyro_y;         /**< Measured Y-axis angular velocity in °/s. */
-  float             gyro_z;         /**< Measured Z-axis angular velocity in °/s. */
-  float             temperature;    /**< Measured temperature from the sensor in degrees Celsius. */
-  uint8_t           state;          /**< Current operational state of the sensor (see `mpu6050_states_t`). */
-  SemaphoreHandle_t data_ready_sem; /**< Semaphore to signal when new data is available. */
+  gpio_num_t                 interrupt_pin;     /**< GPIO pin connected to MPU6050 INT pin. */
+  mpu6050_int_active_level_t active_level;      /**< Active level of the interrupt pin. */
+  mpu6050_int_pin_mode_t     pin_mode;          /**< Push-pull or open-drain mode. */
+  mpu6050_int_latch_mode_t   latch_mode;        /**< Interrupt latch behavior. */
+  mpu6050_int_clear_mode_t   clear_mode;        /**< Interrupt clear behavior. */
+  uint8_t                    interrupt_sources; /**< Bit mask of interrupt sources to enable. */
+} mpu6050_int_config_t;
+
+/**
+ * @brief Structure to store raw MPU6050 sensor data.
+ */
+typedef struct {
+  int16_t accel_x_raw; /**< Raw X-axis acceleration value. */
+  int16_t accel_y_raw; /**< Raw Y-axis acceleration value. */
+  int16_t accel_z_raw; /**< Raw Z-axis acceleration value. */
+  int16_t gyro_x_raw;  /**< Raw X-axis gyroscope value. */
+  int16_t gyro_y_raw;  /**< Raw Y-axis gyroscope value. */
+  int16_t gyro_z_raw;  /**< Raw Z-axis gyroscope value. */
+  int16_t temp_raw;    /**< Raw temperature value. */
+} mpu6050_raw_data_t;
+
+/**
+ * @brief Structure to hold calibration data for the MPU6050 sensor.
+ */
+typedef struct {
+  float accel_x_offset; /**< Accelerometer X-axis offset value. */
+  float accel_y_offset; /**< Accelerometer Y-axis offset value. */
+  float accel_z_offset; /**< Accelerometer Z-axis offset value. */
+  float gyro_x_offset;  /**< Gyroscope X-axis offset value. */
+  float gyro_y_offset;  /**< Gyroscope Y-axis offset value. */
+  float gyro_z_offset;  /**< Gyroscope Z-axis offset value. */
+} mpu6050_calibration_t;
+
+/**
+ * @brief Structure to hold all data related to the MPU6050 sensor.
+ */
+typedef struct {
+  /* I2C communication parameters */
+  i2c_port_t i2c_bus;     /**< I2C bus number used for communication. */
+  uint8_t i2c_address;    /**< I2C address of the MPU6050 sensor. */
+  
+  /* Sensor data */
+  float accel_x;          /**< Accelerometer X-axis reading in g. */
+  float accel_y;          /**< Accelerometer Y-axis reading in g. */
+  float accel_z;          /**< Accelerometer Z-axis reading in g. */
+  float gyro_x;           /**< Gyroscope X-axis reading in degrees per second. */
+  float gyro_y;           /**< Gyroscope Y-axis reading in degrees per second. */
+  float gyro_z;           /**< Gyroscope Z-axis reading in degrees per second. */
+  float temperature;      /**< Temperature reading in degrees Celsius. */
+  
+  /* Sensor state */
+  mpu6050_states_t state; /**< Current state of the sensor. */
+  
+  /* Data mutex for thread safety */
+  portMUX_TYPE data_mutex; /**< Mutex for protecting access to sensor data. */
+  
+  /* Interrupt configuration */
+  mpu6050_int_config_t int_config; /**< Interrupt configuration settings. */
+  
+  /* Semaphore for data ready interrupt */
+  SemaphoreHandle_t data_ready_sem; /**< Semaphore for signaling when new data is ready. */
+  
+  /* Moving average filter buffers */
+  float accel_x_buffer[MPU6050_FILTER_SAMPLES]; /**< Buffer for accelerometer X-axis readings. */
+  float accel_y_buffer[MPU6050_FILTER_SAMPLES]; /**< Buffer for accelerometer Y-axis readings. */
+  float accel_z_buffer[MPU6050_FILTER_SAMPLES]; /**< Buffer for accelerometer Z-axis readings. */
+  float gyro_x_buffer[MPU6050_FILTER_SAMPLES];  /**< Buffer for gyroscope X-axis readings. */
+  float gyro_y_buffer[MPU6050_FILTER_SAMPLES];  /**< Buffer for gyroscope Y-axis readings. */
+  float gyro_z_buffer[MPU6050_FILTER_SAMPLES];  /**< Buffer for gyroscope Z-axis readings. */
+  uint8_t buffer_index;                        /**< Current index in the circular buffer. */
+  
+  /* Calibration data */
+  mpu6050_calibration_t calibration;           /**< Calibration offsets for the sensor. */
 } mpu6050_data_t;
 
 /* Public Functions ***********************************************************/
@@ -249,60 +354,225 @@ char *mpu6050_data_to_json(const mpu6050_data_t *data);
  * @param[in,out] sensor_data Pointer to the `mpu6050_data_t` structure holding
  *                            initialization parameters and state.
  *
- * @return 
- * - `ESP_OK` on success.
- * - Relevant `esp_err_t` codes on failure.
- *
- * @note 
- * - Call this function during system initialization.
+ * @return
+ * - ESP_OK if initialization is successful.
+ * - ESP_FAIL or other error code if initialization fails.
  */
 esp_err_t mpu6050_init(void *sensor_data);
 
 /**
- * @brief Reads accelerometer and gyroscope data from the MPU6050 sensor.
+ * @brief Configure the interrupt settings for the MPU6050 sensor.
  *
- * Retrieves the latest measurements from the MPU6050 sensor and updates the 
- * `mpu6050_data_t` structure.
+ * This function configures the interrupt pin behavior and enables the specified
+ * interrupt sources on the MPU6050 sensor.
  *
- * @param[in,out] sensor_data Pointer to the `mpu6050_data_t` structure to store
- *                            the sensor data and read status.
+ * @param[in] sensor_data Pointer to the mpu6050_data_t structure.
+ * @param[in] int_config Pointer to the interrupt configuration structure.
  *
- * @return 
- * - `ESP_OK`   on successful read.
- * - `ESP_FAIL` on failure.
- *
- * @note 
- * - Ensure the sensor is initialized with `mpu6050_init` before calling.
+ * @return
+ *     - ESP_OK Success
+ *     - ESP_FAIL Failure
  */
-esp_err_t mpu6050_read(mpu6050_data_t *sensor_data);
+esp_err_t mpu6050_config_interrupts(mpu6050_data_t *sensor_data, const mpu6050_int_config_t *int_config);
 
 /**
- * @brief Handles reinitialization and recovery for the MPU6050 sensor.
+ * @brief Enables specific interrupt sources on the MPU6050.
  *
- * Implements exponential backoff for reinitialization attempts when errors are
- * detected. Resets retry counters on successful recovery.
+ * @param[in] sensor_data Pointer to the `mpu6050_data_t` structure.
+ * @param[in] interrupt_sources Bit mask of interrupt sources to enable.
  *
- * @param[in,out] sensor_data Pointer to the `mpu6050_data_t` structure managing
- *                            the sensor state and retry information.
- *
- * @note 
- * - Call this function periodically within `mpu6050_tasks`.
- * - Limits retries based on `mpu6050_max_backoff_interval`.
+ * @return
+ * - ESP_OK if successful.
+ * - ESP_FAIL or other error code if failed.
  */
-void mpu6050_reset_on_error(mpu6050_data_t *sensor_data);
+esp_err_t mpu6050_enable_interrupts(mpu6050_data_t *sensor_data, uint8_t interrupt_sources);
 
 /**
- * @brief Executes periodic tasks for the MPU6050 sensor.
+ * @brief Disables specific interrupt sources on the MPU6050.
  *
- * Periodically reads data and handles errors for the MPU6050 sensor. Uses
- * `mpu6050_reset_on_error` for recovery. Intended to run in a FreeRTOS task.
+ * @param[in] sensor_data Pointer to the `mpu6050_data_t` structure.
+ * @param[in] interrupt_sources Bit mask of interrupt sources to disable.
  *
- * @param[in,out] sensor_data Pointer to the `mpu6050_data_t` structure for managing
- *                            sensor data and error recovery.
+ * @return
+ * - ESP_OK if successful.
+ * - ESP_FAIL or other error code if failed.
+ */
+esp_err_t mpu6050_disable_interrupts(mpu6050_data_t *sensor_data, uint8_t interrupt_sources);
+
+/**
+ * @brief Reads the current interrupt status from the MPU6050.
  *
- * @note 
- * - Should run at intervals defined by `mpu6050_polling_rate_ticks`.
- * - Handles error recovery internally to maintain stable operation.
+ * @param[in] sensor_data Pointer to the `mpu6050_data_t` structure.
+ * @param[out] status Pointer to store the interrupt status.
+ *
+ * @return
+ * - ESP_OK if successful.
+ * - ESP_FAIL or other error code if failed.
+ */
+esp_err_t mpu6050_get_interrupt_status(mpu6050_data_t *sensor_data, uint8_t *status);
+
+/**
+ * @brief Configures the accelerometer and gyroscope settings.
+ *
+ * @param[in] sensor_data Pointer to the `mpu6050_data_t` structure.
+ * @param[in] accel_fs_idx Index into the accelerometer configuration array.
+ * @param[in] gyro_fs_idx Index into the gyroscope configuration array.
+ *
+ * @return
+ * - ESP_OK if configuration is successful.
+ * - ESP_FAIL or other error code if configuration fails.
+ */
+esp_err_t mpu6050_config_sensor(mpu6050_data_t *sensor_data, uint8_t accel_fs_idx, uint8_t gyro_fs_idx);
+
+/**
+ * @brief Reads raw sensor data from the MPU6050.
+ *
+ * @param[in,out] sensor_data Pointer to the `mpu6050_data_t` structure.
+ *
+ * @return
+ * - ESP_OK if read is successful.
+ * - ESP_FAIL or other error code if read fails.
+ */
+esp_err_t mpu6050_read_raw_data(mpu6050_data_t *sensor_data);
+
+/**
+ * @brief Processes raw sensor data into calibrated values.
+ *
+ * @param[in,out] sensor_data Pointer to the `mpu6050_data_t` structure.
+ *
+ * @return
+ * - ESP_OK if processing is successful.
+ * - ESP_FAIL or other error code if processing fails.
+ */
+esp_err_t mpu6050_process_data(mpu6050_data_t *sensor_data);
+
+/**
+ * @brief Resets the MPU6050 sensor when an error occurs.
+ *
+ * @param[in,out] sensor_data Pointer to the `mpu6050_data_t` structure.
+ *
+ * @return
+ * - ESP_OK if reset is successful.
+ * - ESP_FAIL or other error code if reset fails.
+ */
+esp_err_t mpu6050_reset_on_error(mpu6050_data_t *sensor_data);
+
+/**
+ * @brief Puts the MPU6050 sensor into sleep mode to save power.
+ *
+ * @param[in] sensor_data Pointer to the `mpu6050_data_t` structure.
+ *
+ * @return
+ * - ESP_OK if the sensor was successfully put into sleep mode.
+ * - ESP_FAIL or other error code if an error occurred.
+ */
+esp_err_t custom_mpu6050_sleep(mpu6050_data_t *sensor_data);
+
+/**
+ * @brief Wakes up the MPU6050 sensor from sleep mode.
+ *
+ * @param[in] sensor_data Pointer to the `mpu6050_data_t` structure.
+ *
+ * @return
+ * - ESP_OK if the sensor was successfully woken up.
+ * - ESP_FAIL or other error code if an error occurred.
+ */
+esp_err_t custom_mpu6050_wake_up(mpu6050_data_t *sensor_data);
+
+/**
+ * @brief Performs a self-test of the MPU6050 sensor.
+ *
+ * This function verifies that the sensor is functioning correctly by:
+ * 1. Checking the WHO_AM_I register to verify the sensor identity
+ * 2. Testing basic I2C communication by writing and reading back a test value
+ * 3. Reading accelerometer and gyroscope data to verify they are within expected ranges
+ * 4. Checking that the sensor can be put to sleep and woken up
+ *
+ * @param[in] sensor_data Pointer to the `mpu6050_data_t` structure.
+ *
+ * @return
+ * - ESP_OK if all tests pass.
+ * - ESP_FAIL or other error code if any test fails.
+ */
+esp_err_t mpu6050_self_test(mpu6050_data_t *sensor_data);
+
+/**
+ * @brief Calibrates the MPU6050 sensor by collecting samples and calculating offsets.
+ *
+ * This function collects a specified number of samples from the sensor while it is
+ * stationary, and calculates the average offset values for the accelerometer and
+ * gyroscope axes. These offsets are then stored in the sensor_data structure.
+ *
+ * @param[in,out] sensor_data Pointer to the `mpu6050_data_t` structure.
+ * @param[in] num_samples Number of samples to collect for calibration.
+ *
+ * @return
+ * - ESP_OK if calibration is successful.
+ * - ESP_FAIL or other error code if calibration fails.
+ */
+esp_err_t mpu6050_calibrate(mpu6050_data_t *sensor_data, uint16_t num_samples);
+
+/**
+ * @brief Saves calibration values to non-volatile storage (NVS).
+ *
+ * This function stores the calibration offsets in NVS so they can be
+ * retrieved on subsequent power-ups, avoiding the need to recalibrate.
+ *
+ * @param[in] accel_x_offset Accelerometer X-axis offset.
+ * @param[in] accel_y_offset Accelerometer Y-axis offset.
+ * @param[in] accel_z_offset Accelerometer Z-axis offset.
+ * @param[in] gyro_x_offset Gyroscope X-axis offset.
+ * @param[in] gyro_y_offset Gyroscope Y-axis offset.
+ * @param[in] gyro_z_offset Gyroscope Z-axis offset.
+ *
+ * @return
+ * - ESP_OK if saving is successful.
+ * - ESP_FAIL or other error code if saving fails.
+ */
+esp_err_t mpu6050_save_calibration_to_nvs(
+  float accel_x_offset, float accel_y_offset, float accel_z_offset,
+  float gyro_x_offset, float gyro_y_offset, float gyro_z_offset);
+
+/**
+ * @brief Applies calibration offsets to the MPU6050 sensor.
+ *
+ * This function applies the provided calibration offsets to the sensor's
+ * internal registers or to the data processing pipeline.
+ *
+ * @param[in] accel_x_offset Accelerometer X-axis offset.
+ * @param[in] accel_y_offset Accelerometer Y-axis offset.
+ * @param[in] accel_z_offset Accelerometer Z-axis offset.
+ * @param[in] gyro_x_offset Gyroscope X-axis offset.
+ * @param[in] gyro_y_offset Gyroscope Y-axis offset.
+ * @param[in] gyro_z_offset Gyroscope Z-axis offset.
+ *
+ * @return
+ * - ESP_OK if applying calibration is successful.
+ * - ESP_FAIL or other error code if applying calibration fails.
+ */
+esp_err_t mpu6050_apply_calibration(
+  float accel_x_offset, float accel_y_offset, float accel_z_offset,
+  float gyro_x_offset, float gyro_y_offset, float gyro_z_offset);
+
+/**
+ * @brief Loads calibration values from non-volatile storage (NVS).
+ *
+ * This function retrieves the calibration offsets from NVS and applies them
+ * to the sensor, restoring calibration settings from previous sessions.
+ *
+ * @return
+ * - ESP_OK if loading is successful.
+ * - ESP_FAIL or other error code if loading fails.
+ */
+esp_err_t mpu6050_load_calibration_from_nvs(void);
+
+/**
+ * @brief Task function for the MPU6050 sensor to be run periodically.
+ *
+ * This function handles the periodic tasks for the MPU6050 sensor, including
+ * reading data, processing it, and handling any errors that may occur.
+ *
+ * @param[in] sensor_data Pointer to the sensor data structure.
  */
 void mpu6050_tasks(void *sensor_data);
 

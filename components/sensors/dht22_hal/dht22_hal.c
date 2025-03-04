@@ -23,13 +23,20 @@ const uint8_t  dht22_max_retries            = 4;
 const uint32_t dht22_initial_retry_interval = pdMS_TO_TICKS(15 * 1000);
 const uint32_t dht22_max_backoff_interval   = pdMS_TO_TICKS(480 * 1000);
 const uint32_t dht22_start_delay_ms         = 20;
-const uint32_t dht22_response_timeout_us    = 80;
-const uint32_t dht22_bit_threshold_us       = 40;
+const uint32_t dht22_response_timeout_us    = 88;
+const uint32_t dht22_bit_low_timeout_us     = 65;
+const uint32_t dht22_bit_high_timeout_us    = 75;
 const uint8_t  dht22_allowed_fail_attempts  = 3;
 
 /* Globals (Static) ***********************************************************/
 
 static error_handler_t s_dht22_error_handler = { 0 };
+static portMUX_TYPE    s_dht22_mux           = portMUX_INITIALIZER_UNLOCKED;
+
+/* Macros *********************************************************************/
+
+#define DHT22_ENTER_CRITICAL() do { portENTER_CRITICAL(&s_dht22_mux); } while(0)
+#define DHT22_EXIT_CRITICAL()  do { portEXIT_CRITICAL(&s_dht22_mux); } while(0)
 
 /* Static (Private) Functions **************************************************/
 
@@ -52,7 +59,7 @@ static esp_err_t priv_dht22_gpio_init(uint8_t data_io)
 {
   gpio_config_t io_conf;
   io_conf.pin_bit_mask = (1ULL << data_io);
-  io_conf.mode         = GPIO_MODE_OUTPUT;
+  io_conf.mode         = GPIO_MODE_OUTPUT_OD;
   io_conf.pull_up_en   = GPIO_PULLUP_ENABLE;
   io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
   io_conf.intr_type    = GPIO_INTR_DISABLE;
@@ -105,7 +112,7 @@ static bool priv_dht22_wait_for_level_with_duration(int8_t    level,
  */
 static void priv_dht22_send_start_signal(void)
 {
-  gpio_set_direction(dht22_data_io, GPIO_MODE_OUTPUT);
+  gpio_set_direction(dht22_data_io, GPIO_MODE_OUTPUT_OD);
   gpio_set_level(dht22_data_io, 0); /* Pull line low */
   esp_rom_delay_us(dht22_start_delay_ms * 1000); /* Wait for start signal duration */
 
@@ -117,8 +124,8 @@ static void priv_dht22_send_start_signal(void)
  * @brief Waits for the DHT22 sensor to respond after the start signal.
  *
  * Monitors the GPIO line for the DHT22 response sequence: 
- * - Line goes low (~80 µs) indicating the start of the response.
- * - Line goes high (~80 µs) indicating continuation.
+ * - Line goes low (~88 µs) indicating the start of the response.
+ * - Line goes high (~88 µs) indicating continuation.
  * - Line goes low again, signaling readiness to transmit data.
  *
  * If the expected transitions do not occur within the timeout, the function returns `ESP_FAIL`.
@@ -131,7 +138,7 @@ static esp_err_t priv_dht22_wait_for_response(void)
 {
   uint32_t duration = 0;
 
-  /* DHT22 pulls the line low for 80us, then high for 80us, as a response signal */
+  /* DHT22 pulls the line low for 88us, then high for 88us, as a response signal */
   if (!priv_dht22_wait_for_level_with_duration(0, dht22_response_timeout_us, &duration) ||
       !priv_dht22_wait_for_level_with_duration(1, dht22_response_timeout_us, &duration) ||
       !priv_dht22_wait_for_level_with_duration(0, dht22_response_timeout_us, &duration)) {
@@ -144,33 +151,34 @@ static esp_err_t priv_dht22_wait_for_response(void)
 /**
  * @brief Reads a single bit of data from the DHT22 sensor.
  *
- * Measures the duration of a high-level pulse from the DHT22 to determine 
- * if the bit is `0` or `1`. A short pulse represents `0`, while a longer pulse 
- * represents `1`.
+ * Measures the duration of low and high-level pulses from the DHT22 to determine 
+ * if the bit is `0` or `1`. A longer high duration relative to low duration
+ * represents `1`, while a shorter high duration relative to low duration represents `0`.
+ *
+ * @param[out] high_duration Duration of the high-level pulse, in microseconds.
+ * @param[out] low_duration  Duration of the low-level pulse, in microseconds.
  *
  * @return 
  * - `0`        if the bit is `0`.
  * - `1`        if the bit is `1`.
  * - `ESP_FAIL` if the bit cannot be read within the expected timing constraints.
  */
-static int8_t priv_dht22_read_bit(void)
+static int8_t priv_dht22_read_bit(uint32_t *high_duration, uint32_t *low_duration)
 {
-  uint32_t duration = 0;
-
   /* Wait for the line to go high (start of bit transmission) */
-  if (!priv_dht22_wait_for_level_with_duration(1, 50, &duration)) {
+  if (!priv_dht22_wait_for_level_with_duration(1, dht22_bit_low_timeout_us, low_duration)) {
     log_error(dht22_tag, "Bit Read Timeout", "Timeout occurred while waiting for bit start signal");
     return ESP_FAIL;
   }
 
   /* Wait for the line to go low again, measuring the duration of the high level */
-  if (!priv_dht22_wait_for_level_with_duration(0, 70, &duration)) {
+  if (!priv_dht22_wait_for_level_with_duration(0, dht22_bit_high_timeout_us, high_duration)) {
     log_error(dht22_tag, "Bit Read Timeout", "Timeout occurred while waiting for bit end signal");
     return ESP_FAIL;
   }
 
-  /* Determine if the bit is '0' or '1' based on the duration */
-  if (duration > dht22_bit_threshold_us) {
+  /* Determine if the bit is '0' or '1' based on comparing high vs low duration */
+  if (*high_duration > *low_duration) {
     return 1; /* Bit is '1' */
   } else {
     return 0; /* Bit is '0' */
@@ -194,9 +202,11 @@ static int8_t priv_dht22_read_bit(void)
 static esp_err_t priv_dht22_read_data_bits(uint8_t *data_buffer)
 {
   uint8_t byte_index = 0, bit_index = 7;
+  uint32_t high_duration, low_duration;
+  
   memset(data_buffer, 0, 5);
   for (uint8_t i = 0; i < dht22_bit_count; i++) {
-    int8_t bit = priv_dht22_read_bit();
+    int8_t bit = priv_dht22_read_bit(&high_duration, &low_duration);
     if (bit == ESP_FAIL) {
       return ESP_FAIL;
     }
@@ -325,12 +335,16 @@ esp_err_t dht22_read(dht22_data_t *sensor_data)
   uint8_t   data_buffer[5] = {0};
   esp_err_t ret;
 
+  /* Enter critical section to prevent timing disruption */
+  DHT22_ENTER_CRITICAL();
+
   /* Send start signal and wait for response */
   priv_dht22_send_start_signal();
   gpio_set_direction(dht22_data_io, GPIO_MODE_INPUT);
 
   ret = priv_dht22_wait_for_response();
   if (ret != ESP_OK) {
+    DHT22_EXIT_CRITICAL();
     sensor_data->fail_count++;
     sensor_data->state = k_dht22_error;
     log_error(dht22_tag, "No Response", "DHT22 sensor failed to respond to start signal");
@@ -339,6 +353,10 @@ esp_err_t dht22_read(dht22_data_t *sensor_data)
 
   /* Read data bits */
   ret = priv_dht22_read_data_bits(data_buffer);
+  
+  /* Exit critical section as soon as timing-sensitive operations are complete */
+  DHT22_EXIT_CRITICAL();
+  
   if (ret != ESP_OK) {
     sensor_data->fail_count++;
     sensor_data->state = k_dht22_error;
@@ -369,6 +387,10 @@ esp_err_t dht22_read(dht22_data_t *sensor_data)
   }
 
   sensor_data->state = k_dht22_data_updated;
+
+  /* Restore GPIO direction */
+  gpio_set_direction(dht22_data_io, GPIO_MODE_OUTPUT_OD);
+  gpio_set_level(dht22_data_io, 1);
 
   log_info(dht22_tag, "Read Success", "Temperature: %.1f°C, Humidity: %.1f%%", sensor_data->temperature_c, sensor_data->humidity);
   return ESP_OK;

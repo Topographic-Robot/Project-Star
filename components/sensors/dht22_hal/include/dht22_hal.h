@@ -23,7 +23,8 @@ extern const uint32_t dht22_initial_retry_interval; /**< Initial retry interval 
 extern const uint32_t dht22_max_backoff_interval;   /**< Maximum backoff interval for DHT22 retries in system ticks. */
 extern const uint32_t dht22_start_delay_ms;         /**< Start signal delay for DHT22 in milliseconds. */
 extern const uint32_t dht22_response_timeout_us;    /**< Timeout for DHT22 sensor response in microseconds. */
-extern const uint32_t dht22_bit_threshold_us;       /**< Timing threshold for distinguishing bits in DHT22 signal. */
+extern const uint32_t dht22_bit_low_timeout_us;     /**< Timeout for LOW bit detection in microseconds. */
+extern const uint32_t dht22_bit_high_timeout_us;    /**< Timeout for HIGH bit detection in microseconds. */
 extern const uint8_t  dht22_allowed_fail_attempts;  /**< Number of allowed consecutive failures */
 
 /* Enums **********************************************************************/
