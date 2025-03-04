@@ -1,176 +1,90 @@
-# Changelog
+# Project Star Changelog
 
-All notable changes to Project Star will be documented in this file.
+## 2025-03-2
+- Implemented log compression for storage efficiency:
+  - Added zlib compression support to log_storage module
+  - Created binary file write capability in file_write_manager
+  - Enabled automatic compression of log files with .gz extension
+  - Added compression configuration API
+  - Integrated compression with existing log rotation system
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## 2025-02-26
+- Added sequence numbers to all log messages
+- Added timestamp to all log messages
+- Added thread/task ID for multi-threaded debugging
 
-## [Unreleased]
+## 2025-02-25
+- FPGA Code Style Improvements:
+  - Reformatted all Verilog files to follow consistent style guidelines:
+    - Updated buffCapControl.v with consistent comment style and indentation
+    - Updated vgaGen.v with proper formatting and comment style
+    - Updated dataRegistering.v with consistent indentation and spacing
+    - Updated testBench.v with proper formatting without cross-block alignment
+  - Applied consistent style across all files:
+    - Used /* */ style comments instead of // comments
+    - Placed begin on the same line as if/else statements
+    - Placed begin on the next line after always blocks
+    - Used consistent 2-space indentation
+    - Removed excessive alignment across different blocks
+    - Used camelCase for signal names
+    - Added proper spacing around operators
 
-### Added
+## 2025-02-24
+- FPGA Project Cleanup:
+  - Added .gitignore patterns for Quartus-generated files
+  - Added .gitignore patterns for AMD/Xilinx-generated files
+  - Removed tracked generated files from repository:
+    - Removed db/, incremental_db/, output_files/, and greybox_tmp/ directories
+    - Removed *_bb.v (black box) files
+    - Removed .qws, .bak, .rpt, .ppf files
+    - Removed other Quartus-generated temporary files
+  - Added file headers to all Verilog files
+  - Added new FPGA Code Style TODOs for all Verilog files
 
-- Error handling system implementation (by @bsikar)
+## 2025-02-24
+- Updated sensor HALs to use new logging format:
+  - Converted BH1750 sensor HAL from ESP_LOG* to log_*
+  - Converted MQ135 sensor HAL from ESP_LOG* to log_*
+  - MQ135 has better error handling and logging
+- Updated controller HALs to use new logging format:
+  - Converted PCA9685 motor controller HAL from ESP_LOG* to log_*
+  - Converted EC11 encoder HAL from ESP_LOG* to log_*
+- Updated common components to use new logging format:
+  - Converted log_handler.c from ESP_LOG* to log_*
+  - Converted error_handler.c from ESP_LOG* to log_*
+  - Converted i2c.c from ESP_LOG* to log_*
+  - Converted uart.c from ESP_LOG* to log_*
+- Updated sd_card_hal.c to use new logging format:
+  - Converted sd_card_hal.c from ESP_LOG* to log_*
+- Updated time_manager.c to use new logging format:
+  - Converted time_manager.c from ESP_LOG* to log_*
+- Updated sensor_tasks.c to use new logging format:
+  - Converted sensor_tasks.c from ESP_LOG* to log_*
+- Updated webserver_tasks.c to use new logging format:
+  - Converted webserver_tasks.c from ESP_LOG* to log_*
+- Updated file_write_manager.c to use new logging format:
+  - Converted file_write_manager.c from ESP_LOG* to log_*
+- Updated main.c to use new logging format:
+  - Converted main.c from ESP_LOG* to log_*
+- Updated gait_movement.c to use new logging format:
+  - Converted gait_movement.c from ESP_LOG* to log_*
+- Updated hexapod_geometry.c to use new logging format:
+  - Converted hexapod_geometry.c from ESP_LOG* to log_*
+- Updated %d to %u in all log messages that include unsigned integers
 
-  - Added to BH1750 and CCS811 sensors
-  - Consistent error handling pattern with exponential backoff
-  - Error recovery mechanisms in all sensor modules
-  - Unified error state management
+## 2025-02-23 
+- Updated sensor HALs to use new logging format:
+  - Converted DHT22 sensor HAL from ESP_LOG* to log_*
+  - Converted GY-NEO6MV2 GPS HAL from ESP_LOG* to log_*
+  - Converted MPU6050 motion sensor HAL from ESP_LOG* to log_*
+  - Converted QMC5883L compass HAL from ESP_LOG* to log_*
+  - Converted OV7670 camera HAL from ESP_LOG* to log_*
+  - Converted CCS811 air quality sensor HAL from ESP_LOG* to log_*
+- Added descriptive action and status messages to all log calls
+- Maintained existing functionality while updating log format
 
-- EC11 Encoder integration (by @bsikar)
-  - Interrupt and polling support
-  - Motor control integration
-  - Individual encoder per motor support (planned)
-  - Thread-safe access in ISR handlers
-
-### Changed
-
-- Documentation improvements (by @bsikar)
-  - Added comprehensive doc comments
-  - Code formatting updates
-  - Improved README documentation
-  - Updated wiring documentation
-- Logging system updates (by @bsikar)
-  - Converted all components from ESP_LOG* to log_* format:
-    - Sensor HALs (DHT22, GY-NEO6MV2, MPU6050, QMC5883L, OV7670, CCS811, BH1750, MQ135)
-    - Controller HALs (PCA9685, EC11)
-    - Common components (log_handler, error_handler, i2c, uart)
-    - System components (sd_card_hal, time_manager, sensor_tasks, webserver_tasks, file_write_manager)
-    - Core components (main, gait_movement, hexapod_geometry)
-  - Added descriptive action and status messages to all log calls
-  - Updated %d to %u in all log messages that include unsigned integers
-  - Maintained existing functionality while updating log format
-
-### Fixed
-
-- WiFi connectivity and stability (by @bsikar)
-  - Enhanced error handling in WiFi tasks
-  - Improved connection retry logic
-  - Better state management
-- PCA9685 configuration and timing (by @bsikar)
-- Motor task management and synchronization (by @bsikar)
-- System task initialization sequence (by @bsikar)
-- Line ending standardization to LF (by @bsikar)
-
-## [0.2.0] - 2024-12-25
-
-### Added
-
-- Gait movement system (by @bsikar)
-
-  - Helper functions implementation
-  - Basic gait logic
-  - Movement calculations
-  - Rounding fixes for precision
-  - Motor synchronization improvements
-  - Position feedback integration
-
-- Camera system (OV7670) (by @bsikar)
-  - Basic configuration setup
-  - Default initialization
-  - Preparation for multi-camera support
-  - I2C configuration management
-  - Frame timing control
-
-### Changed
-
-- README updates (by @IMMZEK)
-  - Added detailed installation instructions
-  - Updated wiring documentation
-  - Improved project description
-  - Added JTAG debugging section
-
-### Removed
-
-- Deprecated gait implementation files
-- Unused sensor configuration files
-
-## [0.1.0] - 2024-11-14
-
-### Added
-
-- Web server implementation (by @bsikar)
-
-  - Basic server setup
-  - IP configuration management
-  - Error handling
-  - Data streaming support
-
-- Sensor implementations (by @bsikar)
-
-  - MPU6050 motion sensor with improved accuracy
-  - GY-NEO6MV2 GPS module with UART optimization
-  - QMC5883L compass with calibration
-  - DHT22 temperature/humidity sensor with retry logic
-  - BH1750 light sensor with power management
-  - Air quality sensors (CCS811, MQ135) with filtering
-
-- SD Card support (by @bsikar)
-
-  - FATFS implementation
-  - Writing queue system
-  - Time server integration
-  - File integrity checks
-  - Automatic mount/unmount
-
-- JTAG debugging support (by @bsikar)
-  - Pin mapping documentation
-  - Debugging configuration
-  - Integration with development workflow
-  - GDB script support
-
-### Fixed
-
-- GPS module functionality and timing (by @bsikar)
-- SD Card FATFS stability issues (by @bsikar)
-- I2C bus communication reliability (by @bsikar)
-- Sensor value accuracy and calibration (by @bsikar)
-
-## [0.0.1] - 2024-07-19
-
-### Added
-
-- Initial project setup (by @bsikar)
-  - Basic LED functionality
-  - PCA9685 motor driver support
-  - EC11 encoder initial implementation
-  - WiFi station mode
-  - Basic sensor HAL structure
-  - Initial I2C and UART abstractions
-
-### Changed
-
-- Development environment setup (by @Jhews6)
-  - Cross-platform support (Windows and Mac)
-  - Build system configuration
-  - Toolchain setup
-  - Development workflow documentation
-
-### Fixed
-
-- Motor current draw optimization (by @bsikar)
-- Initial WiFi connectivity stability (by @bsikar)
-- Build system compatibility issues (by @Jhews6)
-
-## Contributors
-
-- Brighton Sikarskie (@bsikar)
-  - Core system architecture
-  - Sensor integration
-  - Motor control
-  - Error handling
-- Cesar Magana (@IMMZEK)
-  - Documentation
-  - Testing
-- Jeremie Hews (@Jhews6)
-  - Build system
-  - Cross-platform support
-- Matthew Manginelli (@Mattinelli)
-  - Code review
-  - Quality assurance
-
-## Notes
-
-- Dates are in YYYY-MM-DD format
-- Version numbers are assigned based on major feature additions and breaking changes
-- Some early development commits may be grouped for clarity
-- Detailed commit history available in git logs
+## 2025-02-22
+- Initial TODO list creation
+- Organized tasks by priority and component
+- Added system-wide tasks for stability and testing
+- Implemented core logging system with inline functions and proper variadic argument handling

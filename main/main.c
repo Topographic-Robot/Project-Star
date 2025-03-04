@@ -22,7 +22,7 @@ void app_main(void)
 {
   log_info(system_tag,
           "Starting initialization",
-          "Starting Topographic Robot initialization sequence");
+          "Starting Project-Star initialization sequence");
 
   /* Initialize System-Level Tasks (motor, sensors, webserver, etc) */
   if (system_tasks_init() != ESP_OK) {
@@ -49,5 +49,5 @@ void app_main(void)
 
   log_info(system_tag,
            "System operational",
-           "Topographic Robot is now operational and monitoring system state");
+           "Project-Star is now operational and monitoring system state");
 }

@@ -1,18 +1,24 @@
 /* main/include/tasks/system_tasks.c */
 
 #include "system_tasks.h"
-#include "esp_err.h"
-#include "file_write_manager.h"
-#include "ov7670_hal.h"
-#include "time_manager.h"
+#include "log_handler.h"
+#include "log_storage.h"
+#include "esp_system.h"
+#include "nvs_flash.h"
+#include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "nvs_flash.h"
-#include "log_handler.h"
+#include "freertos/event_groups.h"
+#include "wifi_tasks.h"
+#include "sensor_tasks.h"
+#include "motor_tasks.h"
+#include "webserver_tasks.h"
+#include "time_manager.h"
+#include "file_write_manager.h"
 
 /* Constants ******************************************************************/
 
-const char *system_tag = "Topographic-Robot";
+const char *system_tag = "Project-Star";
 
 /* Globals ********************************************************************/
 
@@ -64,6 +70,10 @@ esp_err_t system_tasks_init(void)
     ESP_LOGE(system_tag, "Failed to initialize log system");
     ret = ESP_FAIL;
   }
+  
+  /* Enable log compression for storage efficiency */
+  log_storage_set_compression(true);
+  log_info(system_tag, "Log Compression", "Enabled log compression for storage efficiency");
 
   /* Initialize NVS storage */
   if (priv_clear_nvs_flash() != ESP_OK) {

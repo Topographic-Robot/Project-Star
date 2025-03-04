@@ -165,15 +165,16 @@ void ec11_register_callback(ec11_data_t  *encoder,
     return;
   }
 
-  if (xSemaphoreTake(encoder->mutex, portMAX_DELAY) == pdTRUE) {
-    encoder->callback   = callback;
-    encoder->board_ptr  = board_ptr;
-    encoder->motor_mask = motor_mask;
-    log_info(ec11_tag, "Callback Set", "Registered callback for encoder with motor mask 0x%04X", motor_mask);
-    xSemaphoreGive(encoder->mutex);
-  } else {
+  if (xSemaphoreTake(encoder->mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
     log_error(ec11_tag, "Mutex Error", "Failed to acquire mutex for callback registration");
+    return;
   }
+  
+  encoder->callback   = callback;
+  encoder->board_ptr  = board_ptr;
+  encoder->motor_mask = motor_mask;
+  log_info(ec11_tag, "Callback Set", "Registered callback for encoder with motor mask 0x%04X", motor_mask);
+  xSemaphoreGive(encoder->mutex);
 }
 
 void IRAM_ATTR ec11_isr_handler(void *arg)

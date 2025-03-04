@@ -7,6 +7,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <errno.h>
 #include "sd_card_hal.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -47,74 +48,160 @@
  *
  * 1. Retry mechanism: Attempt to retry failed operations with
  *    exponential backoff to handle transient failures
- *
- * 2. Fallback storage: If primary storage fails, attempt to write
- *    to a secondary location (e.g., internal flash if SD card fails)
- *
- * 3. Error statistics: Track error rates and types to help diagnose
- *    recurring issues
- *
- * 4. Watchdog integration: Reset the file writer task if it becomes
- *    unresponsive
- *
- * 5. Critical data prioritization: Ensure critical data gets written
- *    even when resources are constrained
- *
- * These improvements will make the system more resilient to failures
- * and provide better diagnostics for troubleshooting.
+ * 2. Fallback storage options: If SD card fails, try to use flash
+ *    memory or other storage options
+ * 3. Error statistics: Track error rates and types for diagnostics
+ * 4. Watchdog integration: Reset the system if file operations
+ *    consistently fail
+ * 5. Critical data prioritization: Ensure critical data is written
+ *    first and with higher reliability guarantees
  */
 
 /* Constants ******************************************************************/
 
-const char    *file_manager_tag   = "FILE_MANAGER";
-const uint32_t max_pending_writes = 10; /**< Maximum queued write operations */
+const char    *file_manager_tag = "FILE_MANAGER";
+const uint32_t max_pending_writes = 20;
 
 /* Globals (Static) ***********************************************************/
 
-static QueueHandle_t        s_file_write_queue       = NULL; /**< Queue for handling file write requests */
-static TaskHandle_t         s_file_write_task_handle = NULL;
-static file_writer_config_t s_file_writer_config     = { 3, 4096, false };
+static QueueHandle_t s_file_write_queue = NULL;
+static TaskHandle_t  s_file_write_task  = NULL;
+static bool          s_initialized      = false;
 
 /* Private Functions **********************************************************/
 
 /**
- * @brief Task to handle queued file write requests.
- *
- * Processes file write requests from a queue and writes data to the specified 
- * files. The task runs continuously, handling requests asynchronously.
- *
- * @param[in] param Pointer to task-specific parameters (unused)
- *
- * @note 
- * - This function is intended to run as a FreeRTOS task.
- * - Each write request includes a timestamp and data to be written.
+ * @brief Writes a string to a file with timestamp
+ * 
+ * @param[in] file_path Path to the file
+ * @param[in] data String to write
+ * @return ESP_OK if successful, ESP_FAIL otherwise
+ */
+static esp_err_t priv_write_to_file(const char *file_path, const char *data)
+{
+  if (!file_path || !data) {
+    log_error(file_manager_tag, "Write Error", "Invalid arguments: file_path or data is NULL");
+    return ESP_ERR_INVALID_ARG;
+  }
+  
+  char full_path[MAX_FILE_PATH_LENGTH * 2];
+  snprintf(full_path, sizeof(full_path), "%s/%s", sd_card_mount_path, file_path);
+  
+  FILE *file = fopen(full_path, "a");
+  if (!file) {
+    log_error(file_manager_tag, "File Open Error", "Failed to open file: %s (errno: %d)", 
+              full_path, errno);
+    return ESP_FAIL;
+  }
+  
+  /* Get current timestamp */
+  char timestamp[TIMESTAMP_BUFFER_SIZE];
+  time_t now = time(NULL);
+  struct tm timeinfo;
+  localtime_r(&now, &timeinfo);
+  
+  /* Format timestamp */
+  snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d",
+           timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+           timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+  
+  /* Write timestamp and data to file */
+  fprintf(file, "%s: %s\n", timestamp, data);
+  
+  /* Ensure data is written to disk */
+  fflush(file);
+  fsync(fileno(file));
+  
+  /* Close file */
+  fclose(file);
+  
+  log_debug(file_manager_tag, "Write Success", "Data written to file: %s", file_path);
+  return ESP_OK;
+}
+
+/**
+ * @brief Writes binary data to a file
+ * 
+ * @param[in] file_path Path to the file
+ * @param[in] data Binary data to write
+ * @param[in] data_length Length of the binary data
+ * @return ESP_OK if successful, ESP_FAIL otherwise
+ */
+static esp_err_t priv_write_binary_to_file(const char *file_path, const void *data, uint32_t data_length)
+{
+  if (!file_path || !data || data_length == 0) {
+    log_error(file_manager_tag, "Binary Write Error", "Invalid arguments: file_path or data is NULL, or data_length is 0");
+    return ESP_ERR_INVALID_ARG;
+  }
+  
+  char full_path[MAX_FILE_PATH_LENGTH * 2];
+  snprintf(full_path, sizeof(full_path), "%s/%s", sd_card_mount_path, file_path);
+  
+  FILE *file = fopen(full_path, "ab");
+  if (!file) {
+    log_error(file_manager_tag, "Binary File Open Error", "Failed to open file: %s (errno: %d)", 
+              full_path, errno);
+    return ESP_FAIL;
+  }
+  
+  /* Write binary data to file */
+  size_t bytes_written = fwrite(data, 1, data_length, file);
+  if (bytes_written != data_length) {
+    log_error(file_manager_tag, "Binary Write Error", "Failed to write all data: %zu of %lu bytes written",
+              bytes_written, (unsigned long)data_length);
+    fclose(file);
+    return ESP_FAIL;
+  }
+  
+  /* Ensure data is written to disk */
+  fflush(file);
+  fsync(fileno(file));
+  
+  /* Close file */
+  fclose(file);
+  
+  log_debug(file_manager_tag, "Binary Write Success", "Binary data written to file: %s (%lu bytes)",
+            file_path, (unsigned long)data_length);
+  return ESP_OK;
+}
+
+/**
+ * @brief Task that processes file write requests from the queue
+ * 
+ * @param param Task parameters (unused)
  */
 static void priv_file_write_task(void *param)
 {
-  log_info(file_manager_tag, "Task Start", "File writer task started, processing queue");
-  file_write_request_t request;
-
+  log_info(file_manager_tag, "Task Start", "File write task started");
+  
   while (1) {
+    /* Wait for a request from the queue */
+    file_write_request_t request;
+    
     if (xQueueReceive(s_file_write_queue, &request, portMAX_DELAY) == pdTRUE) {
-      log_info(file_manager_tag, "Write Start", "Processing write request for file: %s", request.file_path);
-      
-      FILE *file = fopen(request.file_path, "a");
-      if (file == NULL) {
-        log_error(file_manager_tag, "File Error", "Failed to open file: %s", request.file_path);
-        continue;
-      }
-
-      size_t bytes_written = fwrite(request.data, 1, strlen(request.data), file);
-      fflush(file);
-      fsync(fileno(file));
-      fclose(file);
-
-      if (bytes_written != strlen(request.data)) {
-        log_error(file_manager_tag, "Write Error", "Incomplete write to %s: %zu/%zu bytes written", 
-                  request.file_path, bytes_written, strlen(request.data));
+      /* Check if this is a binary request */
+      if (request.is_binary) {
+        /* Process binary write request */
+        priv_write_binary_to_file(
+          request.file_path,
+          request.data,
+          request.data_length
+        );
+        
+        /* Free the allocated data buffer */
+        if (request.data) {
+          free(request.data);
+          request.data = NULL;
+        }
       } else {
-        log_info(file_manager_tag, "Write Success", "Successfully wrote %zu bytes to %s", 
-                 bytes_written, request.file_path);
+        /* Process text write request */
+        priv_write_to_file(request.file_path, (const char *)request.data);
+        
+        /* Free the allocated data buffer */
+        if (request.data) {
+          free(request.data);
+          request.data = NULL;
+        }
       }
     }
   }
@@ -124,96 +211,125 @@ static void priv_file_write_task(void *param)
 
 esp_err_t file_write_manager_init(void)
 {
-  if (!s_file_writer_config.enabled) {
-    log_info(file_manager_tag, "Init Skip", "File writer initialization skipped (disabled in configuration)");
+  if (s_initialized) {
+    log_warn(file_manager_tag, "Init Skip", "File write manager already initialized");
     return ESP_OK;
   }
-
-  log_info(file_manager_tag, "Init Start", "Beginning file writer initialization");
-
+  
+  log_info(file_manager_tag, "Init Start", "Initializing file write manager");
+  
+  /* Create queue for file write requests */
   s_file_write_queue = xQueueCreate(max_pending_writes, sizeof(file_write_request_t));
   if (s_file_write_queue == NULL) {
-    log_error(file_manager_tag, "Queue Error", "Failed to create write queue: insufficient memory");
+    log_error(file_manager_tag, "Queue Error", "Failed to create file write queue");
     return ESP_FAIL;
   }
-  log_info(file_manager_tag, "Queue Create", "Write queue created with capacity: %lu requests", max_pending_writes);
-
-  BaseType_t task_created = xTaskCreate(priv_file_write_task,
-                                        file_manager_tag,
-                                        s_file_writer_config.stack_depth,
-                                        NULL,
-                                        s_file_writer_config.priority,
-                                        &s_file_write_task_handle);
+  
+  /* Create task to process file write requests */
+  BaseType_t task_created = xTaskCreate(
+    priv_file_write_task,
+    "file_write_task",
+    4096,
+    NULL,
+    5,
+    &s_file_write_task
+  );
+  
   if (task_created != pdPASS) {
-    log_error(file_manager_tag, "Task Error", "Failed to create write task: insufficient resources");
+    log_error(file_manager_tag, "Task Error", "Failed to create file write task");
+    vQueueDelete(s_file_write_queue);
+    s_file_write_queue = NULL;
     return ESP_FAIL;
   }
-  log_info(file_manager_tag, "Task Create", "Write task created with priority %u", s_file_writer_config.priority);
-
-  if (sd_card_init() != ESP_OK) {
-    log_error(file_manager_tag, "SD Error", "Failed to initialize SD card storage");
-    return ESP_FAIL;
-  }
-  log_info(file_manager_tag, "SD Ready", "SD card storage system initialized");
-
-  log_info(file_manager_tag, "Init Complete", "File writer system initialization successful");
+  
+  s_initialized = true;
+  log_info(file_manager_tag, "Init Complete", "File write manager initialized successfully");
   return ESP_OK;
 }
 
 esp_err_t file_write_enqueue(const char *file_path, const char *data)
 {
-  if (!s_file_writer_config.enabled) {
-    log_warn(file_manager_tag, "Write Skip", "Write request rejected: file writer is disabled");
+  if (!s_initialized) {
+    log_error(file_manager_tag, "Enqueue Error", "File write manager not initialized");
     return ESP_FAIL;
   }
-
-  if (file_path == NULL || data == NULL) {
-    log_error(file_manager_tag, "Param Error", "Invalid parameters: file_path or data is NULL");
+  
+  if (!file_path || !data) {
+    log_error(file_manager_tag, "Enqueue Error", "Invalid arguments: file_path or data is NULL");
     return ESP_ERR_INVALID_ARG;
   }
-
-  if (s_file_write_queue == NULL) {
-    log_error(file_manager_tag, "Queue Error", "Write request rejected: queue not initialized");
-    return ESP_FAIL;
-  }
-
+  
+  /* Create a request */
   file_write_request_t request;
-  char *timestamp = time_manager_get_timestamp();
-  if (timestamp == NULL) {
-    log_error(file_manager_tag, "Memory Error", "Failed to get timestamp");
+  memset(&request, 0, sizeof(request));
+  
+  /* Copy file path to the request */
+  strncpy(request.file_path, file_path, MAX_FILE_PATH_LENGTH - 1);
+  request.file_path[MAX_FILE_PATH_LENGTH - 1] = '\0';
+  
+  /* Allocate memory for the text data and copy it */
+  size_t data_length = strlen(data) + 1; /* Include null terminator */
+  request.data = malloc(data_length);
+  if (!request.data) {
+    log_error(file_manager_tag, "Memory Error", "Failed to allocate memory for text data");
     return ESP_FAIL;
   }
   
-  /* Handle file path with or without leading slash */
-  const char *format = (file_path[0] == '/') ? "%s%s" : "%s/%s";
-  int result = snprintf(request.file_path, MAX_FILE_PATH_LENGTH, format, sd_card_mount_path, file_path);
-  if (result >= MAX_FILE_PATH_LENGTH) {
-    log_error(file_manager_tag, "Path Error", "File path too long");
-    free(timestamp);
-    return ESP_ERR_INVALID_ARG;
-  }
+  memcpy(request.data, data, data_length);
+  request.data_length = data_length;
+  request.is_binary = false; /* This is a text request */
   
-  /* Check if the combined timestamp and data will fit in the buffer */
-  size_t timestamp_len = strlen(timestamp);
-  size_t data_len = strlen(data);
-  if (timestamp_len + data_len + 2 > MAX_DATA_LENGTH) { /* +2 for space and newline */
-    log_error(file_manager_tag, "Data Error", "Combined data too large for buffer");
-    free(timestamp);
-    return ESP_ERR_INVALID_ARG;
-  }
-  
-  snprintf(request.data, MAX_DATA_LENGTH, "%s %s\n", timestamp, data);
-
-  /* Free the dynamically allocated timestamp */
-  free(timestamp);
-
-  log_info(file_manager_tag, "Queue Write", "Enqueueing write request for file: %s", file_path);
-  if (xQueueSend(s_file_write_queue, &request, 0) != pdTRUE) {
-    log_error(file_manager_tag, "Queue Error", "Write request rejected: queue is full");
+  /* Send the request to the queue */
+  if (xQueueSend(s_file_write_queue, &request, pdMS_TO_TICKS(100)) != pdTRUE) {
+    log_error(file_manager_tag, "Queue Error", "Failed to enqueue file write request: queue full");
+    free(request.data);
     return ESP_FAIL;
   }
+  
+  log_debug(file_manager_tag, "Enqueue Success", "Enqueued write request for file: %s", file_path);
+  return ESP_OK;
+}
 
-  log_info(file_manager_tag, "Queue Success", "Write request successfully queued for processing");
+esp_err_t file_write_binary_enqueue(const char *file_path, const void *data, uint32_t data_length)
+{
+  if (!s_initialized) {
+    log_error(file_manager_tag, "Binary Enqueue Error", "File write manager not initialized");
+    return ESP_FAIL;
+  }
+  
+  if (!file_path || !data || data_length == 0) {
+    log_error(file_manager_tag, "Binary Enqueue Error", "Invalid arguments: file_path or data is NULL, or data_length is 0");
+    return ESP_ERR_INVALID_ARG;
+  }
+  
+  /* Create a binary request */
+  file_write_request_t request;
+  memset(&request, 0, sizeof(request));
+  
+  /* Copy file path to the request */
+  strncpy(request.file_path, file_path, MAX_FILE_PATH_LENGTH - 1);
+  request.file_path[MAX_FILE_PATH_LENGTH - 1] = '\0';
+  
+  /* Allocate memory for the binary data and copy it */
+  request.data = malloc(data_length);
+  if (!request.data) {
+    log_error(file_manager_tag, "Memory Error", "Failed to allocate memory for binary data");
+    return ESP_FAIL;
+  }
+  
+  memcpy(request.data, data, data_length);
+  request.data_length = data_length;
+  request.is_binary = true; /* This is a binary request */
+  
+  /* Send the request to the queue */
+  if (xQueueSend(s_file_write_queue, &request, pdMS_TO_TICKS(100)) != pdTRUE) {
+    log_error(file_manager_tag, "Queue Error", "Failed to enqueue binary write request: queue full");
+    free(request.data);
+    return ESP_FAIL;
+  }
+  
+  log_debug(file_manager_tag, "Binary Enqueue Success", "Enqueued binary write request for file: %s (%lu bytes)", 
+            file_path, (unsigned long)data_length);
   return ESP_OK;
 }
 

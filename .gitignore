@@ -139,3 +139,7 @@ _vmake
 *.mti
 *.mpf
 *.ini
+
+# ESP-IDF specific
+managed_components/
+dependencies.lock
